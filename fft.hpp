@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include <iterator>
 #include <complex>
+#include <type_traits>
+#include <concepts>
 
 namespace fft::detail
 {
@@ -29,12 +31,9 @@ namespace fft::detail
      * @param end An end iterator of the underlying data
      */
     template <std::random_access_iterator It>
-    void bit_reverse_permute(It& begin, It& end)
+    void bit_reverse_permute(It& begin, size_t size)
     {
-        std::size_t size = std::distance(begin, end);
-        std::size_t j = 0;
-
-        for (std::size_t i = 1; i < size; ++i)
+        for (std::size_t i = 1, j = 0; i < size; ++i)
         {
             // Always start from MSB in order to start shifting it towards LSB
             std::size_t bit = size >> 1;
@@ -50,22 +49,62 @@ namespace fft::detail
         }
     }
 
-    template <std::random_access_iterator It>
-    void cooley_tukey_iterative_fft(It&& begin, It&& end, int8_t sign = 1)
-    {
-        static const auto z = std::polar(1.0, 0.0);
-        // TODO: check multiples of 2
-        bit_reverse_permute(begin, end);
-    //            const auto  unityRoot = std::polar(1.0, -2 * sign * std::numbers::pi / seq.size());
+    template <typename T>
+    struct is_complex_t : public std::false_type {};
 
+    template <typename T>
+    struct is_complex_t<std::complex<T>> : public std::true_type {};
+
+    template <typename T>
+    concept is_complex = is_complex_t<T>::value;
+
+    template <typename It>
+    concept fft_compatible_iterator = std::random_access_iterator<It> && detail::is_complex<std::iter_value_t<It>>;
+
+    template <fft_compatible_iterator It>
+    void cooley_tukey_iterative_fft(It& begin, It& end, int8_t sign = 1)
+    {
+        // TODO: check multiples of 2
+        const size_t size = std::distance(begin, end);
+        bit_reverse_permute(begin, size);
+        for (size_t N = 2; N <= size; N <<= 1) // to avoid std::log(size) we just move by powers of 2
+        {
+            const auto unity_root = std::polar(1.0, -2 * sign * std::numbers::pi / N);
+            // Parallelize independent blocks
+            #pragma omp parallel for
+            for (size_t i = 0; i < size; i += N)
+            {
+                auto z = std::polar(1.0, 0.0);
+                for (size_t j = 0; j < N / 2; ++j)
+                {
+                    auto even = *(begin + i + j);
+                    auto odd = *(begin + i + j + N / 2) * z;
+                    *(begin + i + j) = even + odd;
+                    *(begin + i + j + N / 2) = even - odd;
+                    z *= unity_root;
+                }
+            }
+        }
     }
 }
 
 namespace fft
 {
-    template <std::random_access_iterator It>
+    template <typename It>
+    concept fft_compatible_iterator = detail::fft_compatible_iterator<It>;
+
+    template <fft_compatible_iterator It>
     void fft2(It&& begin, It&& end)
     {
-        detail::cooley_tukey_iterative_fft(std::forward<It>(begin), std::forward<It>(end));
+        detail::cooley_tukey_iterative_fft(begin, end);
+    }
+    template <fft_compatible_iterator It>
+    void ifft2(It&& begin, It&& end)
+    {
+        detail::cooley_tukey_iterative_fft(begin, end, -1);
+
+        const auto N = std::distance(begin, end);
+        for (auto& i = begin; i != end; ++i)
+            *i /= N;
     }
 }
