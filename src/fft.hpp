@@ -5,6 +5,7 @@
 #include <complex>
 #include <type_traits>
 #include <concepts>
+#include <expected>
 
 namespace fft::detail
 {
@@ -58,20 +59,26 @@ namespace fft::detail
     template <typename T>
     concept is_complex = is_complex_t<T>::value;
 
+    /**
+     * @brief Checks whether an iterator belongs to a container possessing
+     * random access trait and that its underlying type is std::complex
+     * 
+     * @tparam It Iterator
+     */
     template <typename It>
     concept fft_compatible_iterator = std::random_access_iterator<It> && detail::is_complex<std::iter_value_t<It>>;
 
     template <fft_compatible_iterator It>
-    void cooley_tukey_iterative_fft(It& begin, It& end, int8_t sign = 1)
+    std::expected<void, std::string> cooley_tukey_iterative_fft(It& begin, It& end, int8_t sign = 1)
     {
-        // TODO: check multiples of 2
         const size_t size = std::distance(begin, end);
+        if (size > 0 && ((size & (size - 1)) != 0)) // must be of powers of 2 size
+            return std::unexpected("The sequence size must be of powers of 2");
         bit_reverse_permute(begin, size);
         for (size_t N = 2; N <= size; N <<= 1) // to avoid std::log(size) we just move by powers of 2
         {
             const auto unity_root = std::polar(1.0, -2 * sign * std::numbers::pi / N);
-            // Parallelize independent blocks
-            #pragma omp parallel for
+            #pragma omp parallel for // Parallelize independent blocks
             for (size_t i = 0; i < size; i += N)
             {
                 auto z = std::polar(1.0, 0.0);
@@ -85,6 +92,7 @@ namespace fft::detail
                 }
             }
         }
+        return {};
     }
 }
 
@@ -94,17 +102,22 @@ namespace fft
     concept fft_compatible_iterator = detail::fft_compatible_iterator<It>;
 
     template <fft_compatible_iterator It>
-    void fft2(It&& begin, It&& end)
+    std::expected<void, std::string> fft2(It&& begin, It&& end)
     {
-        detail::cooley_tukey_iterative_fft(begin, end);
+        return detail::cooley_tukey_iterative_fft(begin, end);
     }
-    template <fft_compatible_iterator It>
-    void ifft2(It&& begin, It&& end)
-    {
-        detail::cooley_tukey_iterative_fft(begin, end, -1);
 
-        const auto N = std::distance(begin, end);
-        for (auto& i = begin; i != end; ++i)
-            *i /= N;
+    template <fft_compatible_iterator It>
+    std::expected<void, std::string> ifft2(It&& begin, It&& end)
+    {
+        auto r = detail::cooley_tukey_iterative_fft(begin, end, -1);
+
+        if (r)
+        {
+            const auto N = std::distance(begin, end);
+            for (auto& i = begin; i != end; ++i)
+                *i /= N;
+        }
+        return r;
     }
 }

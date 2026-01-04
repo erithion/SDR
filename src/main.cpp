@@ -1,20 +1,21 @@
 #include "fft.hpp"
 #include <format>
 #include <complex>
-#include <omp.h>
 #include <vector>
 #include <print>
-#include <iostream>
 
 template <typename T, typename CharT>
-struct std::formatter<std::complex<T>, CharT> {
+struct std::formatter<std::complex<T>, CharT>
+{
     // Parse the format specifiers (e.g., precision, etc.)
-    constexpr auto parse(auto& ctx) {
+    constexpr auto parse(auto& ctx)
+    {
         return ctx.begin();
     }
 
     // Format the complex number
-    auto format(const std::complex<T>& c, auto& ctx) const {
+    auto format(const std::complex<T>& c, auto& ctx) const
+    {
         return std::format_to(ctx.out(), "({}+{}i)", c.real(), c.imag());
     }
 };
@@ -33,9 +34,5 @@ int main()
 
     std::println("{}", d);
 
-    #pragma omp parallel
-    {
-        printf("Hello World from thread = %d\n", omp_get_thread_num());
-    }
     return 0;
 }
