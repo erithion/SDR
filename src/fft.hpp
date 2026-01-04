@@ -6,6 +6,7 @@
 #include <type_traits>
 #include <concepts>
 #include <expected>
+#include <tuple>
 
 namespace fft::detail
 {
@@ -29,7 +30,7 @@ namespace fft::detail
      * sequential element access during FFT, hence a boost in speed, as this kind of access is highly cache-friendly.
      * @tparam It Any container possessing a random access iterator trait
      * @param begin A start iterator to the underlying data
-     * @param end An end iterator of the underlying data
+     * @param size Size of the underlying data
      */
     template <std::random_access_iterator It>
     void bit_reverse_permute(It& begin, size_t size)
@@ -68,12 +69,27 @@ namespace fft::detail
     template <typename It>
     concept fft_compatible_iterator = std::random_access_iterator<It> && detail::is_complex<std::iter_value_t<It>>;
 
+    /**
+     * @brief Iterative (I)FFT based on Cooley-Tukey Radix-2 Decimation-In-Time algorithm.
+     * The principal difference from the FFT recursive algorithm is in re-arranging the sequence in contiguos
+     * independent ranges that are CPU cache-friendly, and processing them in parallel using OpenMP.
+     * 
+     * @tparam It An iterator type of a random access container with a std::complex underlying type.
+     * @param begin An iterator to the sequence start.
+     * @param end An iterator of the sequence end.
+     * @param sign 1 is used to get FFT of the sequence, while -1 produces conjugate roots of unity internally,
+     * in effect, returning an unscaled IFFT of the sequence.
+     * @return std::expected<std::tuple<It&, It&>, std::string> 
+     * - A pair of the sequence's begin/end iterators in case of success;
+     * - A string of error in case of failure.
+     */
     template <fft_compatible_iterator It>
-    std::expected<void, std::string> cooley_tukey_iterative_fft(It& begin, It& end, int8_t sign = 1)
+    std::expected<std::tuple<It&, It&>, std::string> cooley_tukey_iterative_fft(It& begin, It& end, int8_t sign = 1)
     {
         const size_t size = std::distance(begin, end);
         if (size > 0 && ((size & (size - 1)) != 0)) // must be of powers of 2 size
             return std::unexpected("The sequence size must be of powers of 2");
+
         bit_reverse_permute(begin, size);
         for (size_t N = 2; N <= size; N <<= 1) // to avoid std::log(size) we just move by powers of 2
         {
@@ -92,7 +108,7 @@ namespace fft::detail
                 }
             }
         }
-        return {};
+        return std::tie(begin, end);
     }
 }
 
@@ -101,23 +117,45 @@ namespace fft
     template <typename It>
     concept fft_compatible_iterator = detail::fft_compatible_iterator<It>;
 
+    /**
+     * @brief Performs FFT of the sequence.
+     * The implementation attempts to be efficient employing parallelization and iterative Cooley-Tukey FFT algorithm.
+     * 
+     * @tparam It An iterator type of a random access container with std::complex underlying type.
+     * @param begin Sequence's begin iterator.
+     * @param end Sequence's end iterator.
+     * @return std::expected<void, std::string> 
+     * - Nothing on success;
+     * - Error string on failure.
+     */
     template <fft_compatible_iterator It>
     std::expected<void, std::string> fft2(It&& begin, It&& end)
     {
-        return detail::cooley_tukey_iterative_fft(begin, end);
+        return detail::cooley_tukey_iterative_fft(begin, end)
+            .transform([](auto&&) -> void {}); // monadic action on success: resetting return to void
     }
 
+    /**
+     * @brief Performs IFFT of the sequence.
+     * The implementation attempts to be efficient employing parallelization and iterative Cooley-Tukey FFT algorithm.
+     * 
+     * @tparam It An iterator type of a random access container with std::complex underlying type.
+     * @param begin Sequence's begin iterator.
+     * @param end Sequence's end iterator.
+     * @return std::expected<void, std::string> 
+     * - Nothing on success;
+     * - Error string on failure.
+     */
     template <fft_compatible_iterator It>
     std::expected<void, std::string> ifft2(It&& begin, It&& end)
     {
-        auto r = detail::cooley_tukey_iterative_fft(begin, end, -1);
-
-        if (r)
-        {
-            const auto N = std::distance(begin, end);
-            for (auto& i = begin; i != end; ++i)
-                *i /= N;
-        }
-        return r;
+        return detail::cooley_tukey_iterative_fft(begin, end, -1)
+            .transform([](auto&& tp)
+            {
+                auto& [begin, end] = tp;
+                const auto N = std::distance(begin, end);
+                for (auto& i = begin; i != end; ++i)
+                    *i /= N;
+            }); // monadic action on success: scaling down and resetting return to void
     }
 }
