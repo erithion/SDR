@@ -17,7 +17,7 @@ FetchContent_MakeAvailable(googletest)
 add_executable(sdr_test fft_test.cpp)
 
 # Link the test executable to your library and the GTest libraries
-target_link_libraries(sdr_test PRIVATE GTest::gtest_main)
+target_link_libraries(sdr_test PRIVATE GTest::gmock GTest::gtest_main)
 target_include_directories(sdr_test PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 # Enable testing and discover tests

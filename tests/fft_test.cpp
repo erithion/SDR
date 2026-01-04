@@ -2,61 +2,66 @@
 #include <vector>
 #include <complex>
 #include <gtest/gtest.h>
+#include <gmock/gmock.h>
 
-using testing::AssertionResult;
-using testing::AssertionSuccess;
-using testing::AssertionFailure;
+using ::testing::Pointwise;
+using ::testing::Truly;
 
-// Helper function to check approximate equality of std::complex<double>
-AssertionResult ComplexNear(const std::complex<double>& exp, const std::complex<double>& act, double tolerance)
+TEST(fft_test, transforms_sequence_forth_and_back_correctly)
 {
-    return ( std::abs(exp.real() - act.real()) <= tolerance && std::abs(exp.imag() - act.imag()) <= tolerance )
-           ? AssertionSuccess()
-           : AssertionFailure()
-               << "Complex numbers are not near enough."
-               << "\n  Expected: " << exp
-               << "\n  Actual:   " << act
-               << "\n  Tolerance: " << tolerance
-               << "\n  Delta real: " << std::abs(exp.real() - act.real())
-               << "\n  Delta imag: " << std::abs(exp.imag() - act.imag());
-}
-
-// Helper function to check if two vectors of complex numbers are approximately equal
-AssertionResult VectorsComplexNear( const std::vector<std::complex<double>>& exp
-                                  , const std::vector<std::complex<double>>& seq
-                                  , double tolerance ) 
-{
-    if (exp.size() != seq.size())
-        return AssertionFailure()
-               << "Vector sizes differ. Expected size " << exp.size()
-               << ", Actual size " << seq.size();
-
-    for (size_t i = 0; i < exp.size(); ++i)
-    {
-        // Use the ComplexNear helper for element-wise comparison
-        AssertionResult res = ComplexNear(exp[i], seq[i], tolerance);
-        if (!res)
-            // Propagate the failure message with index information
-            return AssertionFailure()
-                   << "At index " << i << ": " << res.message();
-    }
-
-    return AssertionSuccess();
-}
-
-TEST(fft_test, ifft_restores_back_fft_transformed_sequence)
-{
-    std::vector<std::complex<double>> exp{0,1,2,3,4,5,6,7};
+    std::vector<std::complex<double>> ref{0,1,2,3,4,5,6,7};
     std::vector<std::complex<double>> seq{0,1,2,3,4,5,6,7};
 
     fft::fft2(seq.begin(), seq.end());
-
     fft::ifft2(seq.begin(), seq.end());
 
-    const double tolerance = 1e-9;
+    EXPECT_THAT(seq, Pointwise(Truly([](const auto& pair)
+    {
+        const auto& [a, b] = pair;
+        return std::abs(a - b) < 1e-9;
+    }), ref));
+}
 
-    // Use a custom assertion wrapper
-    ASSERT_TRUE(VectorsComplexNear(seq, exp, tolerance));
+TEST(fft_test, fft_ifft_for_double)
+{
+    std::vector<std::complex<double>> ref{0,1,2,3,4,5,6,7};
+    std::vector<std::complex<double>> seq{0,1,2,3,4,5,6,7};
+
+    fft::fft2(seq.begin(), seq.end());
+    fft::ifft2(seq.begin(), seq.end());
+
+    EXPECT_THAT(seq, Pointwise(Truly([](const auto& pair)
+    {
+        const auto& [a, b] = pair;
+        return std::abs(a - b) < 1e-9;
+    }), ref));
+}
+
+TEST(fft_test, fft_ifft_for_float)
+{
+    std::vector<std::complex<float>> ref{0,1,2,3,4,5,6,7};
+    std::vector<std::complex<float>> seq{0,1,2,3,4,5,6,7};
+
+    fft::fft2(seq.begin(), seq.end());
+    fft::ifft2(seq.begin(), seq.end());
+
+    EXPECT_THAT(seq, Pointwise(Truly([](const std::tuple<std::complex<float>,std::complex<float>>& p)
+    {
+        constexpr float abs_eps = 1e-5f;
+        constexpr float rel_eps = 1e-6f;
+
+        const auto& [a, b] = p;
+
+        auto close = [&](float x, float y)
+        {
+            float d = std::abs(x - y);
+            float m = std::max(std::abs(x), std::abs(y));
+            return d <= abs_eps || d <= rel_eps * m;
+        };
+
+        return close(a.real(), b.real()) &&
+               close(a.imag(), b.imag());
+    }), ref));
 }
 
 TEST(fft_test, non_multiple_of_two_size_fails)
