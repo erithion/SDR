@@ -74,6 +74,72 @@ void plot_constellation(const std::vector<std::complex<double>>& points)
     pclose(gp);
 }
 
+template <std::floating_point T>
+void plot_fft(const std::vector<std::complex<T>>& fft)
+{
+    FILE* pipe = popen("gnuplot -persist", "w"); // Use popen on Linux/macOS
+
+    if (!pipe) {
+        std::cerr << "Error opening Gnuplot pipe." << std::endl;
+        return;
+    }
+
+    // 4. Send Gnuplot commands and data
+    fprintf(pipe, "reset session\n");
+    fprintf(pipe, "set title 'FFT Spectrum'\\n");
+    fprintf(pipe, "set xlabel 'Frequency Bin'\\n");
+    fprintf(pipe, "set ylabel 'Magnitude'\\n");
+    fprintf(pipe, "plot '-' with impulses title 'FFT Magnitude'\\n"); // '-' tells gnuplot to read data from stdin
+
+    for (int i = 0; i < fft.size(); ++i) {
+        auto magnitude = std::abs(fft[i]); // Calculate magnitude of complex number
+        fprintf(pipe, "%d %lf\\n", i, magnitude); // Send data points (bin, magnitude)
+    }
+
+    fprintf(pipe, "e\\n"); // 'e' signals the end of data input for the current plot command
+    fflush(pipe); // Flush the pipe to ensure data is sent immediately
+    pclose(pipe);
+}
+
+template <std::floating_point T>
+void plot_signal(const std::vector<std::complex<T>>& sig)
+{
+    // 2. Open a pipe to gnuplot
+    FILE* gnuplotPipe = popen("gnuplot -persist", "w"); // Use popen on Linux/macOS
+    if (!gnuplotPipe) {
+        std::cerr << "Error opening gnuplot pipe." << std::endl;
+        return;
+    }
+
+    // 3. Send commands and data
+    // Configure plot
+    fprintf(gnuplotPipe, "reset session\n");
+    fprintf(gnuplotPipe, "set title 'Complex Signal Components vs. Sample Index'\n");
+    fprintf(gnuplotPipe, "set xlabel 'Sample Index (n)'\n");
+    fprintf(gnuplotPipe, "set ylabel 'Value'\n");
+    // Plot using the pipe's stdin ('-') and two columns (1:2 and 1:3 for real and imag parts)
+    fprintf(gnuplotPipe, "plot '-' using 1:2 with lines title 'Real Part', "
+                         "'-' using 1:2 with lines title 'Imaginary Part'\n");
+
+    // Send data for the "Real Part" plot
+    for (int i = 0; i < sig.size(); ++i) {
+        fprintf(gnuplotPipe, "%d %lf\n", i, sig[i].real());
+    }
+    fprintf(gnuplotPipe, "e\n"); // 'e' ends the data block for the first plot
+
+    // Send data for the "Imaginary Part" plot
+    for (int i = 0; i < sig.size(); ++i) {
+        fprintf(gnuplotPipe, "%d %lf\n", i, sig[i].imag());
+    }
+    fprintf(gnuplotPipe, "e\n"); // 'e' ends the data block for the second plot
+
+    fprintf(gnuplotPipe, "quit\n"); // Exit gnuplot process (optional with -persist)
+    fflush(gnuplotPipe); // Flush the pipe buffer
+
+    // 4. Close the pipe
+    pclose(gnuplotPipe);
+}
+
 int main()
 {
     std::vector<std::complex<double>> d{0,1,2,3,4,5,6,7};
@@ -85,8 +151,15 @@ int main()
                            , 0b10101011
                            , 0b11001101
                            , 0b11101111 };
-    auto v = ofdm::to_constellations<ofdm::e16QAM>(in);
-    plot_constellation(v);
+    auto constel = ofdm::to_constellations<ofdm::e16QAM>(in);
+//    plot_constellation(constel);
+    ofdm::tx(constel)
+        .transform([](auto&& modul)
+        {
+            plot_signal(modul);
+//            fft::fft2(mod.begin(), mod.end());
+        });
+
 
     // std::println("{}\n", d);
 
