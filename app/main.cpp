@@ -153,7 +153,14 @@ int main()
                            , 0b11101111 };
     auto constel = ofdm::to_constellations<ofdm::e16QAM>(in);
 //    plot_constellation(constel);
-    ofdm::tx(constel)
+
+//    std::vector<std::complex<double>> aa(128, 0+0j);
+    std::vector<std::complex<double>> aa(256, 0+0j);
+    aa[2] = aa[3] = aa[4] = aa[5] = 1+0j;
+    // for (auto i = 56; i < 74; ++i)
+    //     aa[i] = 1+0j;
+    ofdm::tx(aa, 32)
+//    ofdm::tx(constel)
         .transform([](auto&& modul)
         {
             plot_signal(modul);
@@ -171,7 +178,7 @@ int main()
 
     // std::println("{}", d);
 
-    auto r = ofdm::tx(d);
+    auto r = ofdm::tx(d, 4);
     if (r.has_value())
 //        for (auto v: r.value()) std::print("{}", v);
         std::println("{}\n", r.value());

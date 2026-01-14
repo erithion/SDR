@@ -51,22 +51,23 @@ namespace ofdm
     }
 
     template <std::floating_point T>
-    std::expected<void, std::string> tx(const std::vector<std::complex<T>>& in, std::vector<std::complex<T>>& out)
+    std::expected<void, std::string> tx(const std::vector<std::complex<T>>& in, size_t cp_size, std::vector<std::complex<T>>& out)
     {
-        out.reserve(in.size() + 4);
-        std::initializer_list<std::complex<T>> cp{ {0, 0}, {0, 0}, {0, 0}, {0, 0} };
-        out.insert(out.end(), cp.begin(), cp.end());
-        auto beg = out.end();
-        out.insert(out.end(), in.begin(), in.end());
-        auto r = fft::ifft2(beg, out.end());
-        return r;
+        out.resize(in.size() + cp_size);
+        std::copy(in.begin(), in.end(), out.begin() + cp_size);
+        return fft::ifft2(out.begin() + cp_size, out.end())
+            .and_then([&out, cp_size]() -> std::expected<void, std::string>
+            {
+                std::copy(out.end() - cp_size, out.end(), out.begin());
+                return {};
+            });
     }
 
     template <std::floating_point T>
-    std::expected<std::vector<std::complex<T>>, std::string> tx(const std::vector<std::complex<T>>& in)
+    std::expected<std::vector<std::complex<T>>, std::string> tx(const std::vector<std::complex<T>>& in, size_t cp_size)
     {
         std::vector<std::complex<T>> out;
-        return tx(in, out)
+        return tx(in, cp_size, out)
             .transform([&out]()
             {
                 return out;
