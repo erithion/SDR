@@ -8,12 +8,29 @@
 #include <complex>
 #include <stdint.h>
 #include <array>
+#include <unordered_map>
 
 namespace ofdm
 {
     struct eBPSK{};    // 1bit/symbol
     struct eQPSK{};    // 2bits/symbol
-    struct e16QAM{};   // 4bits/symbol, WiFi/cable
+    struct e16QAM{   // 4bits/symbol, WiFi/cable
+    static constexpr size_t bits_per_symbol = 4;
+
+    template <typename T>
+    static constexpr std::array<std::pair<std::complex<T>, uint8_t>, 16>
+    table() {
+        return {{
+            {{-3, -3}, 0x0}, {{-3, -1}, 0x1}, {{-3, +1}, 0x2}, {{-3, +3}, 0x3},
+            {{-1, -3}, 0x4}, {{-1, -1}, 0x5}, {{-1, +1}, 0x6}, {{-1, +3}, 0x7},
+            {{+1, -3}, 0x8}, {{+1, -1}, 0x9}, {{+1, +1}, 0xA}, {{+1, +3}, 0xB},
+            {{+3, -3}, 0xC}, {{+3, -1}, 0xD}, {{+3, +1}, 0xE}, {{+3, +3}, 0xF}
+        }};
+    }
+};
+
+
+
     struct e64QAM{};   // 6bits/symbol, LTE/Cable TV
     struct e256QAM{};  // 8bits/symbol, 5G
     struct e1024QAM{}; //
@@ -23,11 +40,11 @@ namespace ofdm
         template <typename T>
         std::vector<std::complex<T>> gray_coded_mapper(const std::vector<uint8_t>& in, e16QAM)
         {
-            static constexpr std::array<std::complex<T>, 16> tbl = 
-            { -3+3j, -1+3j, +1+3j, +3+3j
-            , -3+1j, -1+1j, +1+1j, +3+1j
-            , -3-3j, -1-3j, +1-3j, +3-3j
-            , -3-1j, -1-1j, +1-1j, +3-1j };
+           static constexpr std::array<std::complex<T>, 16> tbl =
+           { -3-3j, -3-1j, -3+1j, -3+3j
+           , -1-3j, -1-1j, -1+1j, -1+3j
+           , 1-3j,  1-1j,  1+1j,  1+3j
+           , 3-3j,  3-1j,  3+1j,  3+3j };
         
             std::vector<std::complex<T>> out;
             out.reserve(in.size() * 2);
@@ -50,6 +67,53 @@ namespace ofdm
         return detail::gray_coded_mapper<T>(in, m);
     }
 
+template <typename Mod, typename T = double>
+std::vector<uint8_t> from_constellations(const std::vector<std::complex<T>>& in, Mod m = {})
+{
+    std::vector<uint8_t> out;
+    out.reserve(in.size() / 2);
+
+    constexpr auto table = Mod::template table<T>();
+
+    for (size_t i = 0; i + 1 < in.size(); i += 2) {
+        uint8_t msb_sym = 0;
+        uint8_t lsb_sym = 0;
+
+        // Find closest constellation for MSB symbol
+        {
+            T best_dist = std::numeric_limits<T>::max();
+            for (const auto& [s, bits] : table) {
+                T dx = in[i].real() - s.real();
+                T dy = in[i].imag() - s.imag();
+                T d2 = dx*dx + dy*dy;
+                if (d2 < best_dist) {
+                    best_dist = d2;
+                    msb_sym = bits;
+                }
+            }
+        }
+
+        // Find closest constellation for LSB symbol
+        {
+            T best_dist = std::numeric_limits<T>::max();
+            for (const auto& [s, bits] : table) {
+                T dx = in[i+1].real() - s.real();
+                T dy = in[i+1].imag() - s.imag();
+                T d2 = dx*dx + dy*dy;
+                if (d2 < best_dist) {
+                    best_dist = d2;
+                    lsb_sym = bits;
+                }
+            }
+        }
+
+        // Pack two 4-bit symbols into one byte
+        out.push_back((msb_sym << 4) | (lsb_sym & 0xF));
+    }
+
+    return out;
+}
+
     template <std::floating_point T>
     std::expected<void, std::string> tx(const std::vector<std::complex<T>>& in, size_t cp_size, std::vector<std::complex<T>>& out)
     {
@@ -68,6 +132,25 @@ namespace ofdm
     {
         std::vector<std::complex<T>> out;
         return tx(in, cp_size, out)
+            .transform([&out]()
+            {
+                return out;
+            });
+    }
+
+    template <std::floating_point T>
+    std::expected<void, std::string> rx(const std::vector<std::complex<T>>& in, size_t cp_size, std::vector<std::complex<T>>& out)
+    {
+        out.resize(in.size() - cp_size);
+        std::copy(in.begin() + cp_size, in.end(), out.begin());
+        return fft::fft2(out.begin(), out.end());
+    }
+
+    template <std::floating_point T>
+    std::expected<std::vector<std::complex<T>>, std::string> rx(const std::vector<std::complex<T>>& in, size_t cp_size)
+    {
+        std::vector<std::complex<T>> out;
+        return rx(in, cp_size, out)
             .transform([&out]()
             {
                 return out;
