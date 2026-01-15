@@ -8,6 +8,9 @@
 
 namespace utils
 {
+    /**
+     * Wraps around data that does not fit into the buffer
+     */
     template <typename T>
     struct sliding_buffer
     {
@@ -15,11 +18,6 @@ namespace utils
             : data_(size, 0)
             , cur_{0} {}
         
-        const T* data() const 
-        {
-            return data_.data();
-        }
-
         std::expected<T, std::string> operator[](typename std::vector<T>::size_type pos) const
         {
             if (pos >= data_.size())
@@ -29,23 +27,21 @@ namespace utils
         }
 
         template <typename It>
-        std::expected<void, std::string> push_back(It begin, It end)
+        void push_back(It begin, It end)
         {
             using num_t = typename std::iterator_traits<It>::difference_type;
-            num_t left = data_.size() - cur_;
-            num_t n = std::distance(begin, end);
-            auto r = std::copy_n(begin, std::min(left, n), data_.begin() + cur_);
-            cur_ = std::distance(data_.begin(), r);
-            if (r == data_.end())
-                r = std::copy(begin + std::min(left, n), end, data_.begin());
-            cur_ = std::distance(data_.begin(), r);
-            return {};
+            num_t free = data_.size() - cur_;
+            num_t len = std::distance(begin, end);
+            auto  it = std::copy_n(begin, std::min(free, len), data_.begin() + cur_);
+            if (it == data_.end())
+                it = std::copy(begin + std::min(free, len), end, data_.begin());
+            cur_ = std::distance(data_.begin(), it);
         }
 
-        std::expected<void, std::string> push_back(const T& val)
+        void push_back(const T& val)
         {
             std::initializer_list<T> rg = {val};
-            return push_back(rg.begin(), rg.end());
+            push_back(rg.begin(), rg.end());
         }
 
         size_t size() const

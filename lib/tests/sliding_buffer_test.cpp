@@ -35,7 +35,7 @@ TEST(SlidingBuffer, PushSingleElement)
 {
     sliding_buffer<int> cb(4);
 
-    ASSERT_TRUE(cb.push_back(42).has_value());
+    cb.push_back(42);
 
     auto v = cb[3];
     ASSERT_TRUE(v.has_value());
@@ -52,7 +52,7 @@ TEST(SlidingBuffer, PushRangeNoWrap)
     sliding_buffer<int> cb(size);
 
     std::vector<int> src = {1, 2, 3};
-    ASSERT_TRUE(cb.push_back(src.begin(), src.end()).has_value());
+    cb.push_back(src.begin(), src.end());
 
     EXPECT_EQ(*cb[size - 3], 1);
     EXPECT_EQ(*cb[size - 2], 2);
@@ -68,7 +68,7 @@ TEST(SlidingBuffer, PushRangeExactFit)
     sliding_buffer<int> cb(4);
 
     std::vector<int> src = {10, 20, 30, 40};
-    ASSERT_TRUE(cb.push_back(src.begin(), src.end()).has_value());
+    cb.push_back(src.begin(), src.end());
 
     EXPECT_EQ(*cb[0], 10);
     EXPECT_EQ(*cb[1], 20);
@@ -85,19 +85,13 @@ TEST(SlidingBuffer, PushRangeWithWrap)
     sliding_buffer<int> cb(5);
 
     std::vector<int> first = {1, 2, 3, 4};
-    ASSERT_TRUE(cb.push_back(first.begin(), first.end()).has_value());
+    cb.push_back(first.begin(), first.end());
 
     // cur_ == 4 now
     std::vector<int> second = {5, 6, 7};
-    ASSERT_TRUE(cb.push_back(second.begin(), second.end()).has_value());
+    cb.push_back(second.begin(), second.end());
 
     // Logical layout relative to cur_
-    EXPECT_EQ(cb.data()[0], 6);
-    EXPECT_EQ(cb.data()[1], 7);
-    EXPECT_EQ(cb.data()[2], 3);
-    EXPECT_EQ(cb.data()[3], 4);
-    EXPECT_EQ(cb.data()[4], 5);
-
     EXPECT_EQ(*cb[0], 3);
     EXPECT_EQ(*cb[1], 4);
     EXPECT_EQ(*cb[2], 5);
@@ -114,7 +108,7 @@ TEST(SlidingBuffer, OverwriteOldestData)
     sliding_buffer<int> cb(3);
 
     std::vector<int> src = {1, 2, 3, 4, 5};
-    ASSERT_TRUE(cb.push_back(src.begin(), src.end()).has_value());
+    cb.push_back(src.begin(), src.end());
 
     EXPECT_EQ(*cb[0], 3);
     EXPECT_EQ(*cb[1], 4);
