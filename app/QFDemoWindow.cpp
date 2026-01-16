@@ -2,11 +2,9 @@
 #include "ofdm.hpp"
 #include "sliding_buffer.hpp"
 
-#include <deque>
 #include <complex>
 #include <mutex>
 #include <string>
-#include <vector>
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -21,8 +19,10 @@ std::mutex                                  mtx;
 utils::sliding_buffer<std::complex<float>>  slidingPlot(512);
 utils::sliding_buffer<uint8_t>              slidingText(50);
 size_t                                      payloadPos = 0;
-const std::string                           payload =
-    "Hello, world! I am a Software-Defined Radio Stack.          This string is a result of demultiplexing a 16-QAM multiplexed OFDM signal.          ";
+const std::string                           payload = "Hello, world! " \
+                                                      "I am a Software-Defined Radio Stack.          " \
+                                                      "This string is a result of demultiplexing a 16-QAM " \
+                                                      "multiplexed OFDM signal.          ";
 
 OFDMDemoWindow::OFDMDemoWindow()
 {
@@ -75,8 +75,7 @@ OFDMDemoWindow::OFDMDemoWindow()
 
     constPlot->addGraph();
     constPlot->graph(0)->setLineStyle(QCPGraph::lsNone);
-    constPlot->graph(0)->setScatterStyle(
-        QCPScatterStyle(QCPScatterStyle::ssCircle, 6));
+    constPlot->graph(0)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssCircle, 6));
 
     constPlot->xAxis->setLabel("Re");
     constPlot->yAxis->setLabel("Im");
@@ -122,17 +121,12 @@ OFDMDemoWindow::OFDMDemoWindow()
     auto* timer = new QTimer(this);
     timer->setInterval(50);
 
-    connect(timer, &QTimer::timeout,
-            this, &OFDMDemoWindow::updateFrame);
-
-    connect(speedSlider, &QSlider::valueChanged,
-            this,
-            [timer, speedLabel](int value)
-            {
-                timer->setInterval(value);
-                speedLabel->setText(
-                    QString("Update interval: %1 ms").arg(value));
-            });
+    connect(timer, &QTimer::timeout, this, &OFDMDemoWindow::updateFrame);
+    connect(speedSlider, &QSlider::valueChanged, this, [timer, speedLabel](int value)
+    {
+        timer->setInterval(value);
+        speedLabel->setText(QString("Update interval: %1 ms").arg(value));
+    });
 
     timer->start();
 }
@@ -190,8 +184,7 @@ void OFDMDemoWindow::updateFrame()
     ofdm::rx(tx, 8) // demultiplexing
         .transform([](auto&& rx)
         {
-            auto bytes =
-                ofdm::from_constellations<ofdm::e16QAM>(rx); // bits decoding
+            auto bytes = ofdm::from_constellations<ofdm::e16QAM>(rx); // bits decoding
             slidingText.push_back(bytes.begin(), bytes.end());
             return std::expected<void, std::string>{};
         });
@@ -205,13 +198,14 @@ void OFDMDemoWindow::updateFrame()
         QVector<double> x(N), re(N), im(N);
 
         for (size_t i = 0; i < N; ++i)
-        {
-            auto v = slidingPlot.at(i);
-            if (!v) continue;
-            x[i]  = i;
-            re[i] = v->real();
-            im[i] = v->imag();
-        }
+            slidingPlot.at(i)
+                .and_then([i, &x, &re, &im](auto&& v) -> std::expected<std::complex<double>, std::string>
+                {
+                    x[i]  = i;
+                    re[i] = v.real();
+                    im[i] = v.imag();
+                    return v;
+                });
 
         timePlot->graph(0)->setData(x, re);
         timePlot->graph(1)->setData(x, im);

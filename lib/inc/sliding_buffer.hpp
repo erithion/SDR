@@ -67,7 +67,7 @@ namespace utils
         T& operator[](typename std::vector<T>::size_type pos)
         {
             const auto& r = static_cast<const sliding_buffer&>(*this)[pos];
-            return const_cast<T&>(r); // cast away constness
+            return const_cast<T&>(r); // cast away the constness
         }
 
         const T& operator[](typename std::vector<T>::size_type pos) const
