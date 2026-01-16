@@ -15,16 +15,13 @@
 #include <QGroupBox>
 #include <QEvent>
 
-// -------------------- Globals --------------------
 std::mutex                                  mtx;
 utils::sliding_buffer<std::complex<float>>  g_time_plot(512);
-std::deque<unsigned char>                   g_decoded_text;
+utils::sliding_buffer<uint8_t>              g_decoded_text(50);
+size_t                                      payload_pos = 0;
+const std::string                           payload =
+    "Hello, world! I am a Software-Defined Radio Stack.          ";
 
-size_t        payload_pos = 0;
-const std::string payload =
-    "Hello, world!       I am a Software-Defined Radio Stack";
-
-// -------------------- Constructor --------------------
 OFDMDemoWindow::OFDMDemoWindow()
 {
     setWindowTitle("Software-Defined Radio Stack Demo");
@@ -39,7 +36,7 @@ OFDMDemoWindow::OFDMDemoWindow()
     QFont captionFont;
     captionFont.setPointSize(14);
 
-    // ==================== OFDM Signal ====================
+    // OFDM signal
     auto* timeGroup = new QGroupBox("OFDM Signal");
     timeGroup->setFont(captionFont);
     auto* timeLayout = new QVBoxLayout(timeGroup);
@@ -66,7 +63,7 @@ OFDMDemoWindow::OFDMDemoWindow()
     timeLayout->addWidget(timePlot);
     layout->addWidget(timeGroup);
 
-    // ==================== Constellation ====================
+    // Constellation
     auto* constGroup = new QGroupBox("Constellation");
     constGroup->setFont(captionFont);
     auto* constLayout = new QVBoxLayout(constGroup);
@@ -87,7 +84,7 @@ OFDMDemoWindow::OFDMDemoWindow()
     constLayout->addWidget(constPlot);
     layout->addWidget(constGroup);
 
-    // ==================== Decoded Data ====================
+    // Decoded data
     auto* textGroup = new QGroupBox("Decoded Data");
     textGroup->setFont(captionFont);
     auto* textLayout = new QVBoxLayout(textGroup);
@@ -102,13 +99,12 @@ OFDMDemoWindow::OFDMDemoWindow()
     textLayout->addWidget(textLabel);
     layout->addWidget(textGroup);
 
-    // ==================== Timer ====================
+    // Timer
     auto* timer = new QTimer(this);
     connect(timer, &QTimer::timeout, this, &OFDMDemoWindow::updateFrame);
-    timer->start(20);
+    timer->start(50);
 }
 
-// -------------------- Hover styling --------------------
 bool OFDMDemoWindow::eventFilter(QObject* obj, QEvent* event)
 {
     auto applyStyle = [](QCustomPlot* plot, bool hover)
@@ -142,10 +138,8 @@ bool OFDMDemoWindow::eventFilter(QObject* obj, QEvent* event)
     return QMainWindow::eventFilter(obj, event);
 }
 
-// -------------------- Update frame --------------------
 void OFDMDemoWindow::updateFrame()
 {
-    // ----------- Prepare input -----------
     std::vector<uint8_t> input;
     for (int i = 0; i < 4; ++i)
     {
@@ -153,33 +147,21 @@ void OFDMDemoWindow::updateFrame()
         ++payload_pos;
     }
 
-    auto const_syms = ofdm::to_constellations<ofdm::e16QAM>(input);
-    if (const_syms.empty())
-        return;
+    auto const_syms = ofdm::to_constellations<ofdm::e16QAM>(input); // encoding bits
+    if (const_syms.empty()) return;
 
-    auto tx_exp = ofdm::tx(const_syms, 8);
-    if (!tx_exp)
-        return;
+    auto tx_exp = ofdm::tx(const_syms, 8); // multiplexing
+    if (!tx_exp) return;
 
     auto& tx = *tx_exp;
 
-    // ----------- RX (RESTORED) -----------
-    auto rx_exp = ofdm::rx(tx, 8);
-    if (rx_exp)
-    {
-        auto rx_const = *rx_exp;
-        auto bytes =
-            ofdm::from_constellations<ofdm::e16QAM>(rx_const);
-
-        for (auto b : bytes)
-            g_decoded_text.push_back(b);
-
-        if (g_decoded_text.size() > 200)
-            g_decoded_text.erase(
-                g_decoded_text.begin(),
-                g_decoded_text.begin() +
-                (g_decoded_text.size() - 200));
-    }
+    ofdm::rx(tx, 8) // demultiplexing
+        .transform([](auto&& rx) -> std::expected<void, std::string>
+        {
+            auto bytes = ofdm::from_constellations<ofdm::e16QAM>(rx);
+            g_decoded_text.push_back(bytes.begin(), bytes.end());
+            return {};
+        });
 
     // ----------- Time-domain plot -----------
     {
@@ -191,7 +173,7 @@ void OFDMDemoWindow::updateFrame()
 
         for (size_t i = 0; i < N; ++i)
         {
-            auto v = g_time_plot[i];
+            auto v = g_time_plot.at(i);
             if (!v) continue;
             x[i]  = i;
             re[i] = v->real();
@@ -217,12 +199,6 @@ void OFDMDemoWindow::updateFrame()
     }
 
     // ----------- Running text (WORKING) -----------
-    static size_t offset = 0;
-    if (!g_decoded_text.empty())
-    {
-        std::string s(g_decoded_text.begin(), g_decoded_text.end());
-        offset = (offset + 1) % s.size();
-        textLabel->setText(QString::fromStdString(
-            s.substr(offset) + s.substr(0, offset)));
-    }
+    std::string s(g_decoded_text.begin(), g_decoded_text.end());
+    textLabel->setText(QString::fromStdString(s));
 }

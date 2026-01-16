@@ -22,7 +22,7 @@ TEST(SlidingBuffer, IndexOutOfBounds)
 {
     sliding_buffer<int> cb(3);
 
-    auto r = cb[3];
+    auto r = cb.at(3);
     EXPECT_FALSE(r.has_value());
     EXPECT_NE(r.error().find("exceeds size"), std::string::npos);
 }
@@ -37,7 +37,7 @@ TEST(SlidingBuffer, PushSingleElement)
 
     cb.push_back(42);
 
-    auto v = cb[3];
+    auto v = cb.at(3);
     ASSERT_TRUE(v.has_value());
     EXPECT_EQ(*v, 42);
 }
@@ -54,9 +54,9 @@ TEST(SlidingBuffer, PushRangeNoWrap)
     std::vector<int> src = {1, 2, 3};
     cb.push_back(src.begin(), src.end());
 
-    EXPECT_EQ(*cb[size - 3], 1);
-    EXPECT_EQ(*cb[size - 2], 2);
-    EXPECT_EQ(*cb[size - 1], 3);
+    EXPECT_EQ(cb[size - 3], 1);
+    EXPECT_EQ(cb[size - 2], 2);
+    EXPECT_EQ(cb[size - 1], 3);
 }
 
 /* ------------------------------------------------------------
@@ -70,10 +70,10 @@ TEST(SlidingBuffer, PushRangeExactFit)
     std::vector<int> src = {10, 20, 30, 40};
     cb.push_back(src.begin(), src.end());
 
-    EXPECT_EQ(*cb[0], 10);
-    EXPECT_EQ(*cb[1], 20);
-    EXPECT_EQ(*cb[2], 30);
-    EXPECT_EQ(*cb[3], 40);
+    EXPECT_EQ(cb[0], 10);
+    EXPECT_EQ(cb[1], 20);
+    EXPECT_EQ(cb[2], 30);
+    EXPECT_EQ(cb[3], 40);
 }
 
 /* ------------------------------------------------------------
@@ -92,11 +92,11 @@ TEST(SlidingBuffer, PushRangeWithWrap)
     cb.push_back(second.begin(), second.end());
 
     // Logical layout relative to cur_
-    EXPECT_EQ(*cb[0], 3);
-    EXPECT_EQ(*cb[1], 4);
-    EXPECT_EQ(*cb[2], 5);
-    EXPECT_EQ(*cb[3], 6);
-    EXPECT_EQ(*cb[4], 7);
+    EXPECT_EQ(cb[0], 3);
+    EXPECT_EQ(cb[1], 4);
+    EXPECT_EQ(cb[2], 5);
+    EXPECT_EQ(cb[3], 6);
+    EXPECT_EQ(cb[4], 7);
 }
 
 /* ------------------------------------------------------------
@@ -110,9 +110,9 @@ TEST(SlidingBuffer, OverwriteOldestData)
     std::vector<int> src = {1, 2, 3, 4, 5};
     cb.push_back(src.begin(), src.end());
 
-    EXPECT_EQ(*cb[0], 3);
-    EXPECT_EQ(*cb[1], 4);
-    EXPECT_EQ(*cb[2], 5);
+    EXPECT_EQ(cb[0], 3);
+    EXPECT_EQ(cb[1], 4);
+    EXPECT_EQ(cb[2], 5);
 }
 
 /* ------------------------------------------------------------
@@ -129,10 +129,10 @@ TEST(SlidingBuffer, MultipleSmallPushes)
     cb.push_back(4);
     cb.push_back(5);
 
-    EXPECT_EQ(*cb[0], 2);
-    EXPECT_EQ(*cb[1], 3);
-    EXPECT_EQ(*cb[2], 4);
-    EXPECT_EQ(*cb[3], 5);
+    EXPECT_EQ(cb[0], 2);
+    EXPECT_EQ(cb[1], 3);
+    EXPECT_EQ(cb[2], 4);
+    EXPECT_EQ(cb[3], 5);
 }
 
 /* ------------------------------------------------------------
@@ -148,7 +148,7 @@ TEST(SlidingBuffer, IndexIsRelativeToCurrentHead)
     cb.push_back(30);
     cb.push_back(40);
 
-    EXPECT_EQ(*cb[0], 20);
-    EXPECT_EQ(*cb[1], 30);
-    EXPECT_EQ(*cb[2], 40);
+    EXPECT_EQ(cb[0], 20);
+    EXPECT_EQ(cb[1], 30);
+    EXPECT_EQ(cb[2], 40);
 }
