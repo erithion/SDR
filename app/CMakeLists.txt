@@ -1,68 +1,34 @@
+find_package(Qt6 REQUIRED COMPONENTS Widgets PrintSupport)
 
-add_executable(sdr main.cpp)
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTOUIC ON)
+set(CMAKE_AUTORCC ON)
 
 include(FetchContent)
 
+# 1. Declare the source (using the latest stable 2.1.1 link)
 FetchContent_Declare(
-    imgui
-    GIT_REPOSITORY https://github.com/ocornut/imgui.git
-    GIT_TAG v1.91.4 # Use a specific version tag
-)
-FetchContent_MakeAvailable(imgui)
-
-# Fetch ImPlot
-FetchContent_Declare(
-    implot
-    GIT_REPOSITORY https://github.com/epezent/implot
-    GIT_TAG        v0.16 # Use latest stable version
-)
-FetchContent_MakeAvailable(implot)
-
-FetchContent_Declare(
-  glfw
-  GIT_REPOSITORY https://github.com/glfw/glfw
-  GIT_TAG 3.4 # Consider using a specific release tag (e.g., '3.3.8')
+    qcustomplot
+    URL https://www.qcustomplot.com/release/2.1.1/QCustomPlot-source.tar.gz
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE  # Add this line
 )
 
-# Make the content available and build it
-FetchContent_MakeAvailable(glfw)
+# 2. Download and extract
+FetchContent_MakeAvailable(qcustomplot)
 
-find_package(OpenGL REQUIRED)
-
-target_sources(sdr PRIVATE
-    ${imgui_SOURCE_DIR}/imgui.cpp
-    ${imgui_SOURCE_DIR}/imgui_draw.cpp
-    ${imgui_SOURCE_DIR}/imgui_tables.cpp
-    ${imgui_SOURCE_DIR}/imgui_widgets.cpp
-
-    ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
-    ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
-
-    ${implot_SOURCE_DIR}/implot.cpp
-    ${implot_SOURCE_DIR}/implot_items.cpp
+# 3. Define the library using the fetched files
+# FetchContent provides ${qcustomplot_SOURCE_DIR} automatically
+add_library(qcustomplot STATIC 
+    ${qcustomplot_SOURCE_DIR}/qcustomplot.cpp 
+    ${qcustomplot_SOURCE_DIR}/qcustomplot.h
 )
 
-# ------------------------------------------------------------
-# Include paths (merged & cleaned)
-# ------------------------------------------------------------
-target_include_directories(sdr PRIVATE
-    ${imgui_SOURCE_DIR}
-    ${imgui_SOURCE_DIR}/backends
-    ${implot_SOURCE_DIR}
-)
+# 4. Link dependencies and set includes
+target_link_libraries(qcustomplot PUBLIC Qt6::Widgets Qt6::PrintSupport)
+target_include_directories(qcustomplot INTERFACE ${qcustomplot_SOURCE_DIR})
 
-# ------------------------------------------------------------
-# Link real libraries ONLY
-# ------------------------------------------------------------
-target_link_libraries(sdr PRIVATE
-    sdrlib         # your own library
-    glfw
-    OpenGL::GL
-)
-
-# ------------------------------------------------------------
-# Static runtime (MinGW)
-# ------------------------------------------------------------
+add_executable(sdr main.cpp QFDemoWindow.cpp QFDemoWindow.hpp)
+target_link_libraries(sdr PRIVATE sdrlib Qt6::Widgets qcustomplot)
 target_link_options(sdr PRIVATE -static-libstdc++ -static-libgcc)
 
 if (MINGW AND CMAKE_CXX_COMPILER_ID STREQUAL GNU)
