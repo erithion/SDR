@@ -66,7 +66,7 @@ OFDMDemoWindow::OFDMDemoWindow()
 
     timePlot->xAxis->setLabel("n");
     timePlot->yAxis->setLabel("Amplitude");
-    timePlot->yAxis->setRange(-4, 4);
+    timePlot->yAxis->setRange(-1.1, 1.1);
 
     timeLayout->addWidget(timePlot);
     layout->addWidget(timeGroup);
@@ -89,8 +89,8 @@ OFDMDemoWindow::OFDMDemoWindow()
 
     constPlot->xAxis->setLabel("Re");
     constPlot->yAxis->setLabel("Im");
-    constPlot->xAxis->setRange(-4.3, 4.3);
-    constPlot->yAxis->setRange(-4.3, 4.3);
+    constPlot->xAxis->setRange(-1.1, 1.1);
+    constPlot->yAxis->setRange(-1.1, 1.1);
 
     constLayout->addWidget(constPlot);
     layout->addWidget(constGroup);
@@ -111,7 +111,7 @@ OFDMDemoWindow::OFDMDemoWindow()
     layout->addWidget(textGroup);
 
     // Speed control
-    auto* speedGroup  = new QGroupBox("(De)multiplexing speed");
+    auto* speedGroup  = new QGroupBox("(De)mux speed");
     speedGroup->setFont(captionFont);
     auto* speedLayout = new QHBoxLayout(speedGroup);
 

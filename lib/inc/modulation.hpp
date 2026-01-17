@@ -1,12 +1,12 @@
 #pragma once
 
 #include <concepts>
-#include <expected>
 #include <vector>
 #include <complex>
 #include <stdint.h>
 #include <array>
-#include <format>
+#include <limits>
+#include <cmath>
 
 namespace modulation
 {
@@ -14,34 +14,55 @@ namespace modulation
     struct eQPSK{};    // 2bits/symbol
     struct e16QAM
     {
-        static constexpr size_t bits_per_symbol = 4;
+        static constexpr size_t                             bits_per_symbol = 4;
+        // Normalization factor for averaging symbol power to 1
+        template <typename T>
+        static constexpr T                                  norm = T{1} / std::sqrt(T{10});
+        // Norm inverse, precomputed
+        template <typename T>
+        static constexpr T                                  inorm = std::sqrt(T{10});
+        
+        // Unnormalized Gray-coded 16-QAM where the adjacent symbols' binary indexes differ just by a single bit.
+        // Thus, if noise falsely shifts the symbol closer to a neighbour, this flips just one bit.
+        // Viterbi decoding is very efficient in recovering one error bit, hence the Bit Error Rate (BER) is better.
+        template <typename T>
+        static constexpr std::array<std::complex<T>, 16> table =
+        {
+            /* 0000 */ -3-3j,
+            /* 0001 */ -3-1j,
+            /* 0010 */ -3+3j,
+            /* 0011 */ -3+1j,
+            /* 0100 */ -1-3j,
+            /* 0101 */ -1-1j,
+            /* 0110 */ -1+3j,
+            /* 0111 */ -1+1j,
+            /* 1000 */ +3-3j,
+            /* 1001 */ +3-1j,
+            /* 1010 */ +3+3j,
+            /* 1011 */ +3+1j,
+            /* 1100 */ +1-3j,
+            /* 1101 */ +1-1j,
+            /* 1110 */ +1+3j,
+            /* 1111 */ +1+1j
+        };
 
         template <typename T>
-        static constexpr std::array<std::pair<std::complex<T>, uint8_t>, 16> table = 
-        {{ {-3-3j, 0x0}, {-3-1j, 0x1}, {-3+1j, 0x2}, {-3+3j, 0x3}
-        ,  {-1-3j, 0x4}, {-1-1j, 0x5}, {-1+1j, 0x6}, {-1+3j, 0x7}
-        ,  {+1-3j, 0x8}, {+1-1j, 0x9}, {+1+1j, 0xA}, {+1+3j, 0xB}
-        ,  {+3-3j, 0xC}, {+3-1j, 0xD}, {+3+1j, 0xE}, {+3+3j, 0xF} }};
-
-        template <typename T>
-        static std::expected<uint8_t, std::string> nearest(const std::complex<T>& pt)
+        static uint8_t nearest(const std::complex<T>& pt) noexcept
         {
             uint8_t res = 0;
             T       best = std::numeric_limits<T>::max();
-            for (const auto& [cpx, bits]: table<T>)
+            auto    unp = pt * inorm<T>;
+            for (uint8_t i = 0; i != table<T>.size(); ++i)
             {
-                T dx = pt.real() - cpx.real();
-                T dy = pt.imag() - cpx.imag();
+                T dx = unp.real() - table<T>[i].real();
+                T dy = unp.imag() - table<T>[i].imag();
                 T d2 = dx*dx + dy*dy;
                 if (d2 < best)
                 {
                     best = d2;
-                    res = bits;
+                    res = i;
                 }
             }
-            if (best == std::numeric_limits<T>::max()) 
-                return std::unexpected(std::format( "Nearest not found for Re{{pt}}={}, Im{{pt}}={} in 16-QAM"
-                                                  , pt.real(), pt.imag() )); // Too lazy to define complex formatter
             return res;
         }
     };
@@ -50,49 +71,39 @@ namespace modulation
     struct e256QAM{};  // 8bits/symbol, 5G
     struct e1024QAM{}; //
 
-    namespace detail
-    {
-        template <typename T>
-        std::vector<std::complex<T>> gray_coded_mapper(const std::vector<uint8_t>& in, e16QAM)
-        {
-           static constexpr std::array<std::complex<T>, 16> tbl =
-           { -3-3j, -3-1j, -3+1j, -3+3j
-           , -1-3j, -1-1j, -1+1j, -1+3j
-           , 1-3j,  1-1j,  1+1j,  1+3j
-           , 3-3j,  3-1j,  3+1j,  3+3j };
-        
-            std::vector<std::complex<T>> out;
-            out.reserve(in.size() * 2);
-        
-            for (uint8_t v : in)
-            {
-                uint8_t msb = (v >> 4) & 0xF;
-                uint8_t lsb = v & 0xF;
-            
-                out.push_back(tbl[msb]);
-                out.push_back(tbl[lsb]);
-            }
-            return out;
-        }
-    }
-
+    /**
+     * 
+     * @param in A sequence of 4-bit packed data
+     */
     template <typename Mod, typename T = double>
     std::vector<std::complex<T>> to_constl(const std::vector<uint8_t>& in, Mod m = {})
+        requires std::same_as<Mod, e16QAM> // Specialization/overload for 16-QAM
     {
-        return detail::gray_coded_mapper<T>(in, m);
+        std::vector<std::complex<T>> out;
+        out.reserve(in.size() * 2);
+    
+        for (uint8_t v: in)
+        {
+            uint8_t msb = (v >> 4) & 0xF;
+            uint8_t lsb = v & 0xF;
+        
+            out.push_back(Mod::template table<T>[msb] * Mod::template norm<T>);
+            out.push_back(Mod::template table<T>[lsb] * Mod::template norm<T>);
+        }
+        return out;
     }
 
     template <typename Mod, typename T = double>
     std::vector<uint8_t> from_constl(const std::vector<std::complex<T>>& in, Mod m = {})
+        requires std::same_as<Mod, e16QAM> // Specialization/overload for 16-QAM
     {
         std::vector<uint8_t> out;
         out.reserve(in.size() / 2);
 
         for (size_t i = 0; i + 1 < in.size(); i += 2)
         {
-            // TODO(artem): don't ignore errors
-            uint8_t msb_sym = Mod::template nearest<T>(in[i]).value_or(0);
-            uint8_t lsb_sym = Mod::template nearest<T>(in[i + 1]).value_or(0);
+            uint8_t msb_sym = Mod::template nearest<T>(in[i]);
+            uint8_t lsb_sym = Mod::template nearest<T>(in[i + 1]);
             // Pack two 4-bit symbols into one byte
             out.push_back((msb_sym << 4) | (lsb_sym & 0xF));
         }
