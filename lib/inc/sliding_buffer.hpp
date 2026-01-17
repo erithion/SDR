@@ -59,7 +59,7 @@ namespace utils
         std::expected<T, std::string> at(typename std::vector<T>::size_type pos) const
         {
             if (pos >= data_.size())
-                return std::unexpected(std::format("The pos={} exceeds size={}", pos, data_.size()));
+                return std::unexpected(std::format("pos={} exceeds size={}", pos, data_.size()));
     
             return operator[](pos);
         }

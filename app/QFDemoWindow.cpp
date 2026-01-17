@@ -19,10 +19,11 @@ std::mutex                                  mtx;
 utils::sliding_buffer<std::complex<float>>  slidingPlot(512);
 utils::sliding_buffer<uint8_t>              slidingText(50);
 size_t                                      payloadPos = 0;
-const std::string                           payload = "Hello, world! " \
-                                                      "I am a Software-Defined Radio Stack.          " \
-                                                      "This string is a result of demultiplexing a 16-QAM " \
-                                                      "multiplexed OFDM signal.          ";
+const std::string                           payload =
+    "Hello, world! "
+    "I am a Software-Defined Radio Stack.          "
+    "This string is a result of demultiplexing a 16-QAM "
+    "multiplexed OFDM signal.          ";
 
 OFDMDemoWindow::OFDMDemoWindow()
 {
@@ -38,12 +39,16 @@ OFDMDemoWindow::OFDMDemoWindow()
     QFont captionFont;
     captionFont.setPointSize(14);
 
-    // OFDM signal
+    // OFDM time signal
     auto* timeGroup = new QGroupBox("OFDM Signal");
     timeGroup->setFont(captionFont);
     auto* timeLayout = new QVBoxLayout(timeGroup);
+    timeLayout->setContentsMargins(0, 0, 0, 0);
+    timeLayout->setSpacing(0);
 
     timePlot = new QCustomPlot;
+    timePlot->setMouseTracking(true);
+    timePlot->setAttribute(Qt::WA_Hover, true);
     timePlot->installEventFilter(this);
 
     timePlot->legend->setVisible(true);
@@ -69,8 +74,12 @@ OFDMDemoWindow::OFDMDemoWindow()
     auto* constGroup = new QGroupBox("Constellation");
     constGroup->setFont(captionFont);
     auto* constLayout = new QVBoxLayout(constGroup);
+    constLayout->setContentsMargins(0, 0, 0, 0);
+    constLayout->setSpacing(0);
 
     constPlot = new QCustomPlot;
+    constPlot->setMouseTracking(true);
+    constPlot->setAttribute(Qt::WA_Hover, true);
     constPlot->installEventFilter(this);
 
     constPlot->addGraph();
@@ -85,7 +94,7 @@ OFDMDemoWindow::OFDMDemoWindow()
     constLayout->addWidget(constPlot);
     layout->addWidget(constGroup);
 
-    // Decoded data
+    // Decoded text
     auto* textGroup = new QGroupBox("Decoded Data");
     textGroup->setFont(captionFont);
     auto* textLayout = new QVBoxLayout(textGroup);
@@ -100,7 +109,7 @@ OFDMDemoWindow::OFDMDemoWindow()
     textLayout->addWidget(textLabel);
     layout->addWidget(textGroup);
 
-    // Speed
+    // Speed control
     auto* speedGroup  = new QGroupBox("(De)multiplexing speed");
     speedGroup->setFont(captionFont);
     auto* speedLayout = new QHBoxLayout(speedGroup);
@@ -108,10 +117,31 @@ OFDMDemoWindow::OFDMDemoWindow()
     auto* speedLabel  = new QLabel("Update interval: 50 ms");
     auto* speedSlider = new QSlider(Qt::Horizontal);
 
-    speedSlider->setRange(1, 200);     // ms
+    speedSlider->setRange(1, 200);
     speedSlider->setValue(50);
     speedSlider->setTickInterval(10);
     speedSlider->setTickPosition(QSlider::TicksBelow);
+
+    // Slider hover styling (THIS WORKS)
+    speedSlider->setStyleSheet(R"(
+        QSlider::groove:horizontal {
+            height: 6px;
+            background: #d0d0d0;
+            border-radius: 3px;
+        }
+        QSlider::handle:horizontal {
+            width: 18px;
+            margin: -6px 0;
+            background: #5a8dee;
+            border-radius: 9px;
+        }
+        QSlider::handle:horizontal:hover {
+            background: #2f6fed;
+        }
+        QSlider::groove:horizontal:hover {
+            background: #b0c8ff;
+        }
+    )");
 
     speedLayout->addWidget(speedLabel);
     speedLayout->addWidget(speedSlider);
@@ -133,32 +163,35 @@ OFDMDemoWindow::OFDMDemoWindow()
 
 bool OFDMDemoWindow::eventFilter(QObject* obj, QEvent* event)
 {
-    auto applyStyle = [](QCustomPlot* plot, bool hover)
+    auto hoverOn = [](QCustomPlot* p)
     {
-        if (hover)
-        {
-            plot->setBackground(QColor(245, 248, 255));
-            plot->xAxis->setBasePen(QPen(Qt::darkBlue, 2));
-            plot->yAxis->setBasePen(QPen(Qt::darkBlue, 2));
-        }
-        else
-        {
-            plot->setBackground(Qt::white);
-            plot->xAxis->setBasePen(QPen(Qt::black, 1));
-            plot->yAxis->setBasePen(QPen(Qt::black, 1));
-        }
-        plot->replot(QCustomPlot::rpQueuedReplot);
+        p->setBackground(QColor(245, 248, 255));
+        p->xAxis->setBasePen(QPen(Qt::darkBlue, 2));
+        p->yAxis->setBasePen(QPen(Qt::darkBlue, 2));
+        p->xAxis->setTickPen(QPen(Qt::darkBlue, 2));
+        p->yAxis->setTickPen(QPen(Qt::darkBlue, 2));
+        p->replot(QCustomPlot::rpQueuedReplot);
     };
 
-    if (event->type() == QEvent::Enter)
+    auto hoverOff = [](QCustomPlot* p)
     {
-        if (obj == timePlot)  applyStyle(timePlot, true);
-        if (obj == constPlot) applyStyle(constPlot, true);
+        p->setBackground(Qt::white);
+        p->xAxis->setBasePen(QPen(Qt::black, 1));
+        p->yAxis->setBasePen(QPen(Qt::black, 1));
+        p->xAxis->setTickPen(QPen(Qt::black, 1));
+        p->yAxis->setTickPen(QPen(Qt::black, 1));
+        p->replot(QCustomPlot::rpQueuedReplot);
+    };
+
+    if (event->type() == QEvent::HoverEnter)
+    {
+        if (obj == timePlot)  hoverOn(timePlot);
+        if (obj == constPlot) hoverOn(constPlot);
     }
-    else if (event->type() == QEvent::Leave)
+    else if (event->type() == QEvent::HoverLeave)
     {
-        if (obj == timePlot)  applyStyle(timePlot, false);
-        if (obj == constPlot) applyStyle(constPlot, false);
+        if (obj == timePlot)  hoverOff(timePlot);
+        if (obj == constPlot) hoverOff(constPlot);
     }
 
     return QMainWindow::eventFilter(obj, event);
@@ -167,7 +200,7 @@ bool OFDMDemoWindow::eventFilter(QObject* obj, QEvent* event)
 void OFDMDemoWindow::updateFrame()
 {
     std::vector<uint8_t> input;
-    for (int i = 0; i < 4; ++i) // We're using 16-QAM for now
+    for (int i = 0; i < 4; ++i)
     {
         input.push_back(payload[payloadPos % payload.size()]);
         ++payloadPos;
@@ -189,7 +222,7 @@ void OFDMDemoWindow::updateFrame()
             return std::expected<void, std::string>{};
         });
 
-    // Time-domain plot
+    // time domain
     {
         std::lock_guard lock(mtx);
         slidingPlot.push_back(tx.begin(), tx.end());
@@ -199,7 +232,7 @@ void OFDMDemoWindow::updateFrame()
 
         for (size_t i = 0; i < N; ++i)
             slidingPlot.at(i)
-                .and_then([i, &x, &re, &im](auto&& v) -> std::expected<std::complex<double>, std::string>
+                .and_then([&](auto&& v) -> std::expected<std::complex<double>, std::string>
                 {
                     x[i]  = i;
                     re[i] = v.real();
@@ -213,9 +246,10 @@ void OFDMDemoWindow::updateFrame()
         timePlot->replot();
     }
 
-    // Constellation plot
+    // constellation
     {
-        QVector<double> x(const_syms.size()), y(const_syms.size());
+        QVector<double> x(const_syms.size()),
+                        y(const_syms.size());
         for (size_t i = 0; i < const_syms.size(); ++i)
         {
             x[i] = const_syms[i].real();
@@ -225,7 +259,7 @@ void OFDMDemoWindow::updateFrame()
         constPlot->replot();
     }
 
-    // Running text
+    // running text
     std::string s(slidingText.begin(), slidingText.end());
     textLabel->setText(QString::fromStdString(s));
 }
