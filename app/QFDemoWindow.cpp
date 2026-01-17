@@ -1,5 +1,6 @@
 #include "QFDemoWindow.hpp"
 #include "ofdm.hpp"
+#include "modulation.hpp"
 #include "sliding_buffer.hpp"
 
 #include <complex>
@@ -206,7 +207,7 @@ void OFDMDemoWindow::updateFrame()
         ++payloadPos;
     }
 
-    auto const_syms = ofdm::to_constl<ofdm::e16QAM>(input); // bits encoding
+    auto const_syms = modulation::to_constl<modulation::e16QAM>(input); // bits encoding
     if (const_syms.empty()) return;
 
     auto tx_exp = ofdm::tx(const_syms, 8); // multiplexing
@@ -217,7 +218,7 @@ void OFDMDemoWindow::updateFrame()
     ofdm::rx(tx, 8) // demultiplexing
         .transform([](auto&& rx)
         {
-            auto bytes = ofdm::from_constl<ofdm::e16QAM>(rx); // bits decoding
+            auto bytes = modulation::from_constl<modulation::e16QAM>(rx); // bits decoding
             slidingText.push_back(bytes.begin(), bytes.end());
             return std::expected<void, std::string>{};
         });
