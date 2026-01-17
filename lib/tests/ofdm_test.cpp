@@ -28,8 +28,8 @@ TEST(OFDMTest, Transforms16QAMForthAndBackCorrectly)
 {
     std::vector<uint8_t> in{'H', 'e', 'l', 'l', 'o'};
 
-    auto buf = ofdm::to_constellations<ofdm::e16QAM>(in);
-    auto res = ofdm::from_constellations<ofdm::e16QAM>(buf);
+    auto buf = ofdm::to_constl<ofdm::e16QAM>(in);
+    auto res = ofdm::from_constl<ofdm::e16QAM>(buf);
 
     EXPECT_EQ(res, in);
 }

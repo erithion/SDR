@@ -108,7 +108,7 @@ OFDMDemoWindow::OFDMDemoWindow()
     auto* speedLabel  = new QLabel("Update interval: 50 ms");
     auto* speedSlider = new QSlider(Qt::Horizontal);
 
-    speedSlider->setRange(10, 200);     // ms
+    speedSlider->setRange(1, 200);     // ms
     speedSlider->setValue(50);
     speedSlider->setTickInterval(10);
     speedSlider->setTickPosition(QSlider::TicksBelow);
@@ -173,7 +173,7 @@ void OFDMDemoWindow::updateFrame()
         ++payloadPos;
     }
 
-    auto const_syms = ofdm::to_constellations<ofdm::e16QAM>(input); // bits encoding
+    auto const_syms = ofdm::to_constl<ofdm::e16QAM>(input); // bits encoding
     if (const_syms.empty()) return;
 
     auto tx_exp = ofdm::tx(const_syms, 8); // multiplexing
@@ -184,7 +184,7 @@ void OFDMDemoWindow::updateFrame()
     ofdm::rx(tx, 8) // demultiplexing
         .transform([](auto&& rx)
         {
-            auto bytes = ofdm::from_constellations<ofdm::e16QAM>(rx); // bits decoding
+            auto bytes = ofdm::from_constl<ofdm::e16QAM>(rx); // bits decoding
             slidingText.push_back(bytes.begin(), bytes.end());
             return std::expected<void, std::string>{};
         });
