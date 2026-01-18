@@ -110,47 +110,46 @@ namespace fft::detail
                 }
             }
 */
-        using floating = typename std::iter_value_t<It>::value_type; // double or float from std::complex
-        const floating theta = -2.0 * (inverse ? -1.0 : 1.0) * std::numbers::pi / N;
-        const floating cos = std::cos(theta);
-        const floating sin = std::sin(theta);
+            using floating = typename std::iter_value_t<It>::value_type; // double or float from std::complex
+            const floating theta = -2.0 * (inverse ? -1.0 : 1.0) * std::numbers::pi / N;
+            const floating cos = std::cos(theta);
+            const floating sin = std::sin(theta);
 
-        // TODO(artem): consider SIMD improvements
-        #pragma omp parallel for if(size / N > ParallelWhenSizeIsLargerThan)
-        for (size_t i = 0; i < size; i += N)
-        {
-            floating wr = 1.0;
-            floating wi = 0.0;
-        
-            for (size_t j = 0; j < N / 2; ++j)
+            // TODO(artem): consider SIMD improvements
+            #pragma omp parallel for if(size / N > ParallelWhenSizeIsLargerThan)
+            for (size_t i = 0; i < size; i += N)
             {
-                const auto even = *(begin + i + j);
-                const auto odd  = *(begin + i + j + N / 2);
+                floating wr = 1.0;
+                floating wi = 0.0;
             
-                const std::complex<floating> t
+                for (size_t j = 0; j < N / 2; ++j)
                 {
-                    odd.real() * wr - odd.imag() * wi,
-                    odd.real() * wi + odd.imag() * wr
-                };
-            
-                *(begin + i + j)         = even + t;
-                *(begin + i + j + N / 2) = even - t;
-            
-                // Twiddle recurrence
-                const floating tmp = wr;
-                wr = tmp * cos - wi * sin;
-                wi = tmp * sin + wi * cos;
-            
-                // Optional renormalization (cheap safety net)
-                if ((j & 31) == 0)
-                {
-                    const floating mag = std::hypot(wr, wi);
-                    wr /= mag;
-                    wi /= mag;
+                    const auto even = *(begin + i + j);
+                    const auto odd  = *(begin + i + j + N / 2);
+                
+                    const std::complex<floating> t
+                    {
+                        odd.real() * wr - odd.imag() * wi,
+                        odd.real() * wi + odd.imag() * wr
+                    };
+                
+                    *(begin + i + j)         = even + t;
+                    *(begin + i + j + N / 2) = even - t;
+                
+                    // Twiddle recurrence
+                    const floating tmp = wr;
+                    wr = tmp * cos - wi * sin;
+                    wi = tmp * sin + wi * cos;
+                
+                    // Optional renormalization (cheap safety net)
+                    if ((j & 31) == 0)
+                    {
+                        const floating mag = std::hypot(wr, wi);
+                        wr /= mag;
+                        wi /= mag;
+                    }
                 }
             }
-        }
-
         }
         return {};
     }

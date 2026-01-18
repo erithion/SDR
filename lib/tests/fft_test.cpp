@@ -7,7 +7,7 @@
 using ::testing::Pointwise;
 using ::testing::Truly;
 
-TEST(fft_test, transforms_sequence_forth_and_back_correctly)
+TEST(FFTTest, TransformsSequenceForthAndBackCorrectly)
 {
     std::vector<std::complex<double>> ref{0,1,2,3,4,5,6,7};
     std::vector<std::complex<double>> seq{0,1,2,3,4,5,6,7};
@@ -22,7 +22,7 @@ TEST(fft_test, transforms_sequence_forth_and_back_correctly)
     }), ref));
 }
 
-TEST(fft_test, fft_ifft_for_double)
+TEST(FFTTest, FftIfftForDouble)
 {
     std::vector<std::complex<double>> ref{0,1,2,3,4,5,6,7};
     std::vector<std::complex<double>> seq{0,1,2,3,4,5,6,7};
@@ -37,7 +37,7 @@ TEST(fft_test, fft_ifft_for_double)
     }), ref));
 }
 
-TEST(fft_test, fft_ifft_for_float)
+TEST(FFTTest, FftIfftForFloat)
 {
     std::vector<std::complex<float>> ref{0,1,2,3,4,5,6,7};
     std::vector<std::complex<float>> seq{0,1,2,3,4,5,6,7};
@@ -64,7 +64,7 @@ TEST(fft_test, fft_ifft_for_float)
     }), ref));
 }
 
-TEST(fft_test, non_multiple_of_two_size_fails)
+TEST(FFTTest, SizeNonMultipleOf2Fails)
 {
     std::vector<std::complex<double>> seq{0,1,2};
 
