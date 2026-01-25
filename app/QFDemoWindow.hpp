@@ -1,13 +1,14 @@
 #pragma once
 
 #include <QMainWindow>
-#include <QPen>
-#include <QTimer>
-#include <QLabel>
 #include "qcustomplot.h"
 
 class QCustomPlot;
 class QLabel;
+class QTextEdit;
+class QLineEdit;
+class QSlider;
+class QTimer;
 
 class OFDMDemoWindow : public QMainWindow
 {
@@ -18,12 +19,26 @@ public:
 
 protected:
     bool eventFilter(QObject* obj, QEvent* event) override;
-    
+
 private slots:
     void updateFrame();
 
 private:
-    QCustomPlot* timePlot = nullptr;
-    QCustomPlot* constPlot = nullptr;
-    QLabel*      textLabel = nullptr;
+    // ================== TX ==================
+    QCustomPlot* txConstPlot  = nullptr;
+    QCustomPlot* txTimePlot   = nullptr;
+    QTextEdit*   txTextEdit   = nullptr;
+
+    // ================== RX ==================
+    QCustomPlot* rxConstPlot  = nullptr;
+    QCustomPlot* rxTimePlot   = nullptr;
+    QLabel*      rxTextLabel  = nullptr;
+
+    // ================== Channel ==================
+    QCustomPlot* noisePlot    = nullptr;
+    QLineEdit*   noiseEdit    = nullptr;
+
+    QSlider*     speedSlider  = nullptr;
+    QLabel*      speedLabel   = nullptr;
+    QTimer*      timer        = nullptr;
 };
