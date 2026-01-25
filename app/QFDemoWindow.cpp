@@ -7,6 +7,7 @@
 #include <complex>
 #include <mutex>
 #include <string>
+#include <deque>
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -20,23 +21,23 @@
 #include <QLineEdit>
 #include <QPen>
 
+constexpr int   CONST_HISTORY = 10;
+constexpr float ALPHA_DECAY   = 0.80f;
+
 std::mutex                                  mtx;
-// utils::sliding_buffer<std::complex<float>>  slidingPlot(512);
-// utils::sliding_buffer<uint8_t>              slidingText(50);
-// channel::awgn                               noise{20.0}; // noise 10dB
 size_t                                      payloadPos = 0;
-const std::string                           payload =
+const std::string                           payloadConst =
     "Hello, world! "
     "I am a Software-Defined Radio Stack.          "
     "This string is a result of demultiplexing a 16-QAM "
-    "multiplexed OFDM signal.          ";
+    "multiplexed OFDM signal. Khartia time has come. Русні пизда!!!!!!!         ";
 
-
+constexpr auto                              noiseLvl = 26.0d; // dB
 utils::sliding_buffer<std::complex<float>>  txTimeBuf(512);
 utils::sliding_buffer<std::complex<float>>  rxTimeBuf(512);
 utils::sliding_buffer<std::complex<float>>  noiseBuf(512);
 utils::sliding_buffer<uint8_t>              rxTextBuf(128);
-channel::awgn                               noise{20.0d}; // dB
+channel::awgn                               noise{noiseLvl};
 
 OFDMDemoWindow::OFDMDemoWindow()
 {
@@ -58,14 +59,13 @@ OFDMDemoWindow::OFDMDemoWindow()
     // -------- fixed row heights (visual contract) --------
     constexpr int CONSTELLATION_H = 220;
     constexpr int TIME_H          = 220;
-    constexpr int TEXT_H          = 48;
 
     // ================== TX | RX ==================
     auto* trxLayout = new QHBoxLayout;
     mainLayout->addLayout(trxLayout);
 
     // ================== TX ==================
-    auto* txGroup = new QGroupBox("TX");
+    auto* txGroup = new QGroupBox;
     txGroup->setFont(captionFont);
     auto* txLayout = new QVBoxLayout(txGroup);
     txLayout->setContentsMargins(0, 0, 0, 0);
@@ -77,18 +77,17 @@ OFDMDemoWindow::OFDMDemoWindow()
     txConstPlot->installEventFilter(this);
     txConstPlot->addGraph();
     txConstPlot->graph(0)->setLineStyle(QCPGraph::lsNone);
-    txConstPlot->graph(0)->setScatterStyle(
-        QCPScatterStyle(QCPScatterStyle::ssCircle, 6));
+    txConstPlot->graph(0)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssStar, 6));
     txConstPlot->xAxis->setLabel("Re");
     txConstPlot->yAxis->setLabel("Im");
     txConstPlot->xAxis->setRange(-1.1, 1.1);
     txConstPlot->yAxis->setRange(-1.1, 1.1);
 
     auto* txConstRow = new QWidget;
-    txConstRow->setFixedHeight(CONSTELLATION_H);
     auto* txConstRowLayout = new QVBoxLayout(txConstRow);
     txConstRowLayout->setContentsMargins(0,0,0,0);
     txConstRowLayout->addWidget(txConstPlot);
+    txConstRow->setFixedHeight(CONSTELLATION_H);
 
     // --- TX time ---
     txTimePlot = new QCustomPlot;
@@ -108,30 +107,33 @@ OFDMDemoWindow::OFDMDemoWindow()
     txTimePlot->yAxis->setRange(-1.1, 1.1);
 
     auto* txTimeRow = new QWidget;
-    txTimeRow->setFixedHeight(TIME_H);
     auto* txTimeRowLayout = new QVBoxLayout(txTimeRow);
     txTimeRowLayout->setContentsMargins(0,0,0,0);
     txTimeRowLayout->addWidget(txTimePlot);
+    txTimeRow->setFixedHeight(TIME_H);
 
     // --- TX text ---
     txTextEdit = new QTextEdit;
     txTextEdit->setFont(textFont);
     txTextEdit->setPlaceholderText("Enter text to transmit...");
+    txTextEdit->setText(QString::fromStdString(payloadConst));
+    txTextEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
     auto* txTextRow = new QWidget;
-    txTextRow->setFixedHeight(TEXT_H);
     auto* txTextRowLayout = new QVBoxLayout(txTextRow);
     txTextRowLayout->setContentsMargins(0,0,0,0);
     txTextRowLayout->addWidget(txTextEdit);
+    txTextRow->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
-    txLayout->addWidget(txConstRow);
-    txLayout->addWidget(txTimeRow);
-    txLayout->addWidget(txTextRow);
+    // --- Add TX rows with stretch factors ---
+    txLayout->addWidget(txConstRow, 3);
+    txLayout->addWidget(txTimeRow, 3);
+    txLayout->addWidget(txTextRow, 1);
 
     trxLayout->addWidget(txGroup, 1);
 
     // ================== RX ==================
-    auto* rxGroup = new QGroupBox("RX");
+    auto* rxGroup = new QGroupBox;
     rxGroup->setFont(captionFont);
     auto* rxLayout = new QVBoxLayout(rxGroup);
     rxLayout->setContentsMargins(0, 0, 0, 0);
@@ -143,18 +145,17 @@ OFDMDemoWindow::OFDMDemoWindow()
     rxConstPlot->installEventFilter(this);
     rxConstPlot->addGraph();
     rxConstPlot->graph(0)->setLineStyle(QCPGraph::lsNone);
-    rxConstPlot->graph(0)->setScatterStyle(
-        QCPScatterStyle(QCPScatterStyle::ssCircle, 6));
+    rxConstPlot->graph(0)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssStar, 6));
     rxConstPlot->xAxis->setLabel("Re");
     rxConstPlot->yAxis->setLabel("Im");
     rxConstPlot->xAxis->setRange(-1.1, 1.1);
     rxConstPlot->yAxis->setRange(-1.1, 1.1);
 
     auto* rxConstRow = new QWidget;
-    rxConstRow->setFixedHeight(CONSTELLATION_H);
     auto* rxConstRowLayout = new QVBoxLayout(rxConstRow);
     rxConstRowLayout->setContentsMargins(0,0,0,0);
     rxConstRowLayout->addWidget(rxConstPlot);
+    rxConstRow->setFixedHeight(CONSTELLATION_H);
 
     // --- RX time ---
     rxTimePlot = new QCustomPlot;
@@ -174,31 +175,34 @@ OFDMDemoWindow::OFDMDemoWindow()
     rxTimePlot->yAxis->setRange(-1.1, 1.1);
 
     auto* rxTimeRow = new QWidget;
-    rxTimeRow->setFixedHeight(TIME_H);
     auto* rxTimeRowLayout = new QVBoxLayout(rxTimeRow);
     rxTimeRowLayout->setContentsMargins(0,0,0,0);
     rxTimeRowLayout->addWidget(rxTimePlot);
+    rxTimeRow->setFixedHeight(TIME_H);
 
-    // --- RX decoded text (scroll-safe, no jumps) ---
+    // --- RX decoded text ---
     rxTextLabel = new QLabel;
     rxTextLabel->setFont(textFont);
     rxTextLabel->setWordWrap(true);
-    rxTextLabel->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+    rxTextLabel->setAlignment(Qt::AlignTop | Qt::AlignLeft);
+    rxTextLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
     auto* rxScroll = new QScrollArea;
     rxScroll->setWidgetResizable(true);
     rxScroll->setFrameShape(QFrame::NoFrame);
     rxScroll->setWidget(rxTextLabel);
+    rxScroll->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
     auto* rxTextRow = new QWidget;
-    rxTextRow->setFixedHeight(TEXT_H);
     auto* rxTextRowLayout = new QVBoxLayout(rxTextRow);
     rxTextRowLayout->setContentsMargins(0,0,0,0);
     rxTextRowLayout->addWidget(rxScroll);
+    rxTextRow->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
-    rxLayout->addWidget(rxConstRow);
-    rxLayout->addWidget(rxTimeRow);
-    rxLayout->addWidget(rxTextRow);
+    // --- Add RX rows with stretch factors ---
+    rxLayout->addWidget(rxConstRow, 3);
+    rxLayout->addWidget(rxTimeRow, 3);
+    rxLayout->addWidget(rxTextRow, 1);
 
     trxLayout->addWidget(rxGroup, 1);
 
@@ -208,7 +212,7 @@ OFDMDemoWindow::OFDMDemoWindow()
     auto* channelLayout = new QHBoxLayout(channelGroup);
 
     noisePlot = new QCustomPlot;
-    noisePlot->yAxis->setRange(-1.1, 1.1);
+    noisePlot->yAxis->setRange(-0.5, 0.5);
     noisePlot->setMouseTracking(true);
     noisePlot->setAttribute(Qt::WA_Hover, true);
     noisePlot->installEventFilter(this);
@@ -228,16 +232,16 @@ OFDMDemoWindow::OFDMDemoWindow()
 
     auto* noiseBox = new QGroupBox("SNR (dB)");
     auto* noiseLayout = new QVBoxLayout(noiseBox);
-    noiseEdit = new QLineEdit("20.0");
+    noiseEdit = new QLineEdit(QString::number(noiseLvl, 'f', 1));
     noiseLayout->addWidget(noiseEdit);
     noiseBox->setMaximumWidth(140);
-    
+
     connect(noiseEdit, &QLineEdit::editingFinished, this, [this] {
         noise.snr(noiseEdit->text().toFloat());
     });
-    
+
     channelLayout->addWidget(noiseBox);
-    
+
     auto* speedBox = new QGroupBox("(De)mux speed");
     auto* speedLayout = new QVBoxLayout(speedBox);
     speedBox->setMaximumWidth(220);
@@ -249,8 +253,8 @@ OFDMDemoWindow::OFDMDemoWindow()
     speedSlider->setTickInterval(10);
     speedSlider->setTickPosition(QSlider::TicksBelow);
 
-    // Slider hover styling (THIS WORKS)
     speedSlider->setStyleSheet(R"(
+        QGroupBox { margin-top: 0px; }
         QSlider::groove:horizontal {
             height: 6px;
             background: #d0d0d0;
@@ -333,6 +337,10 @@ bool OFDMDemoWindow::eventFilter(QObject* obj, QEvent* event)
 
 void OFDMDemoWindow::updateFrame()
 {
+    static std::deque<QVector<QPointF>> txConstHist;
+    static std::deque<QVector<QPointF>> rxConstHist;
+
+    auto payload = txTextEdit->toPlainText().toStdString();
     std::vector<uint8_t> input;
     for (int i = 0; i < 4; ++i)
     {
@@ -344,15 +352,38 @@ void OFDMDemoWindow::updateFrame()
     if (tx_const_syms.empty()) return;
     // constellation
     {
-        QVector<double> x(tx_const_syms.size()),
-                        y(tx_const_syms.size());
-        for (size_t i = 0; i < tx_const_syms.size(); ++i)
+        QVector<QPointF> pts;
+        for (auto& s : tx_const_syms)
+            pts.emplace_back(s.real(), s.imag());
+
+        txConstHist.push_front(pts);
+        if (txConstHist.size() > CONST_HISTORY)
+            txConstHist.pop_back();
+
+        txConstPlot->clearGraphs();
+
+        for (size_t i = 0; i < txConstHist.size(); ++i)
         {
-            x[i] = tx_const_syms[i].real();
-            y[i] = tx_const_syms[i].imag();
+            auto* g = txConstPlot->addGraph();
+            g->setLineStyle(QCPGraph::lsNone);
+
+            QColor c(0, 0, 160);
+            c.setAlphaF(std::pow(ALPHA_DECAY, i));
+
+            g->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssStar, 6));
+            g->setPen(QPen(c));
+            g->setBrush(c);
+
+            QVector<double> x, y;
+            for (auto& p : txConstHist[i])
+            {
+                x.push_back(p.x());
+                y.push_back(p.y());
+            }
+            g->setData(x, y);
         }
-        txConstPlot->graph(0)->setData(x, y);
-        txConstPlot->replot();
+
+        txConstPlot->replot(QCustomPlot::rpQueuedReplot);
     }
 
     auto tx_exp = ofdm::tx(tx_const_syms, 8); // multiplexing
@@ -441,15 +472,38 @@ void OFDMDemoWindow::updateFrame()
 
     // constellation
     {
-        QVector<double> x(rx_const_syms.size()),
-                        y(rx_const_syms.size());
-        for (size_t i = 0; i < rx_const_syms.size(); ++i)
+        QVector<QPointF> pts;
+        for (auto& s : rx_const_syms)
+            pts.emplace_back(s.real(), s.imag());
+
+        rxConstHist.push_front(pts);
+        if (rxConstHist.size() > CONST_HISTORY)
+            rxConstHist.pop_back();
+
+        rxConstPlot->clearGraphs();
+
+        for (size_t i = 0; i < rxConstHist.size(); ++i)
         {
-            x[i] = rx_const_syms[i].real();
-            y[i] = rx_const_syms[i].imag();
+            auto* g = rxConstPlot->addGraph();
+            g->setLineStyle(QCPGraph::lsNone);
+
+            QColor c(0, 0, 160);
+            c.setAlphaF(std::pow(ALPHA_DECAY, i));
+
+            g->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssStar, 6));
+            g->setPen(QPen(c));
+            g->setBrush(c);
+
+            QVector<double> x, y;
+            for (auto& p : rxConstHist[i])
+            {
+                x.push_back(p.x());
+                y.push_back(p.y());
+            }
+            g->setData(x, y);
         }
-        rxConstPlot->graph(0)->setData(x, y);
-        rxConstPlot->replot();
+
+        rxConstPlot->replot(QCustomPlot::rpQueuedReplot);
     }
 
     // running text
