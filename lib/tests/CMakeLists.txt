@@ -10,7 +10,7 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(googletest)
 
-add_executable(sdrlib_test fft_test.cpp ofdm_test.cpp sliding_buffer_test.cpp)
+add_executable(sdrlib_test fft_test.cpp ofdm_test.cpp sliding_buffer_test.cpp modulation_test.cpp)
 
 # Link the test executable to the header-only library target
 target_link_libraries(sdrlib_test PRIVATE sdrlib GTest::gmock GTest::gtest_main)

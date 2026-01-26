@@ -65,6 +65,26 @@ namespace modulation
             }
             return res;
         }
+
+        template <typename T = double>
+        std::vector<T> likelihood(const std::complex<T>& constellation_point, T noise_variance)
+        {
+            std::array<T, table<T>.size()> ll = {};
+            for (auto i = 0; i != table<T>.size(); ++i)
+                ll[i] = std::norm(constellation_point - table<T>[i]); // distance |R-S[i]|^2
+            
+            std::vector<T>                 llr(bits_per_symbol, 0);
+            for (int i = 1, k = 0; i != (1 << bits_per_symbol); i <<= 1, ++k)
+            {
+                T b0, b1;
+                b0 = b1 = std::numeric_limits<T>::max();
+                for (auto j = 0; j != ll.size(); ++j)
+                    if (i & j) b1 = std::min(b1, ll[j]);
+                    else b0 = std::min(b0, ll[j]);
+                llr[k] = (b0 - b1) / noise_variance;
+            }                    
+            return llr;
+        }
     };
 
     struct e64QAM{};   // 6bits/symbol, LTE/Cable TV
@@ -92,6 +112,7 @@ namespace modulation
         }
         return out;
     }
+
 
     template <typename Mod, typename T = double>
     std::vector<uint8_t> from_constl(const std::vector<std::complex<T>>& in, Mod m = {})
