@@ -467,7 +467,8 @@ void OFDMDemoWindow::updateFrame()
     if (!rx_exp) return;
 
     auto& rx_const_syms = *rx_exp;
-    auto bytes = modulation::from_constl<modulation::e16QAM>(rx_const_syms); // bits decoding
+//    auto bytes = modulation::from_constl<modulation::e16QAM>(rx_const_syms); // bits decoding
+    auto bytes = modulation::from_constl_llr<modulation::e16QAM>(rx_const_syms, noiseEdit->text().toDouble()); // bits decoding
     rxTextBuf.push_back(bytes.begin(), bytes.end());
 
     // constellation

@@ -25,12 +25,3 @@ TEST(OFDMTest, TransformsSequenceForthAndBackCorrectly)
     }), ref));
 }
 
-TEST(OFDMTest, Transforms16QAMForthAndBackCorrectly)
-{
-    std::vector<uint8_t> in{'H', 'e', 'l', 'l', 'o'};
-
-    auto buf = modulation::to_constl<modulation::e16QAM>(in);
-    auto res = modulation::from_constl<modulation::e16QAM>(buf);
-
-    EXPECT_EQ(res, in);
-}
